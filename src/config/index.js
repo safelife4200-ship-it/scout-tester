@@ -56,15 +56,18 @@ export async function initCountries() {
 
   const data = await response.json();
   const countries = data.countries || [];
-  const codes = countries.map((c) => c.code).filter((code) => code);
+  let codes = countries.map((c) => c.code).filter((code) => code);
 
-  if (codes.length === 0) throw new Error('Scout API returned empty country list');
+  // Filter to only working countries (FR, DE, GB have proxy pools; others fail with code 14)
+  const WORKING_COUNTRIES = ['FR', 'DE', 'GB'];
+  codes = codes.filter((c) => WORKING_COUNTRIES.includes(c));
+
+  if (codes.length === 0) throw new Error('Scout API returned no working countries');
 
   COUNTRIES_ALL = codes;
-  // Randomly pick 3 from COUNTRIES_ALL for COUNTRIES_DEFAULT
-  const shuffled = [...codes].sort(() => Math.random() - 0.5);
-  COUNTRIES_DEFAULT = shuffled.slice(0, Math.min(3, shuffled.length));
-  console.log(`[scout] Loaded ${COUNTRIES_ALL.length} countries, default: [${COUNTRIES_DEFAULT.join(', ')}]`);
+  // Use all available working countries for defaults (all 3 work well)
+  COUNTRIES_DEFAULT = COUNTRIES_ALL.length <= 3 ? [...COUNTRIES_ALL] : COUNTRIES_ALL.slice(0, 3);
+  console.log(`[scout] Loaded ${COUNTRIES_ALL.length} working countries (FR/DE/GB), default: [${COUNTRIES_DEFAULT.join(', ')}]`);
 }
 
 // ─── Batch Settings ───
