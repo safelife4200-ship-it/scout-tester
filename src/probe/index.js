@@ -90,16 +90,20 @@ export async function rawProbe(url, country, scoutKey, opts = {}) {
     const content = data.file_content || '';
     const passed = data.state === 'complete' && content.length > 100;
     const dataType = detectDataType(content);
-    return {
+    const result = {
       passed, country, responseTime: elapsed, contentLength: content.length,
       dataType,
       errorCode: data.code || null, state: data.state || 'unknown',
       blockSignals: passed ? [] : detectBlockSignals(content),
       time: new Date().toISOString(),
     };
+    console.log(`[scout] ${url.slice(0, 40)} [${country}] ${elapsed}ms → ${result.passed ? 'PASS' : 'FAIL'} (${result.state})`);
+    return result;
   } catch (err) {
+    const elapsed = Date.now() - start;
+    console.log(`[scout] ${url.slice(0, 40)} [${country}] ${elapsed}ms → ERROR: ${err.message}`);
     return {
-      passed: false, country, responseTime: Date.now() - start, contentLength: 0,
+      passed: false, country, responseTime: elapsed, contentLength: 0,
       dataType: 'Text',
       errorCode: err.message, state: 'error', blockSignals: [],
       time: new Date().toISOString(),

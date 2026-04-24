@@ -35,19 +35,40 @@ export const PORT = parseInt(process.env.PORT || '3004', 10);
 
 export const SCOUT_API = 'https://api.scout.sentinel.co/api/v1/probe/sync';
 export const SCOUT_USER_URL = 'https://api.scout.sentinel.co/api/v1/user';
-export const SCOUT_TIMEOUT_MS = 45000;
+export const SCOUT_TIMEOUT_MS = 200000; // 200s: Scout API /probe/sync can take up to 3min (180s) + buffer
 
 // ─── Countries ───
 
-export const COUNTRIES_DEFAULT = ['FR', 'DE', 'GB'];
-export const COUNTRIES_ALL = [
-  'US', 'GB', 'DE', 'FR', 'CA', 'AU', 'NL', 'SE', 'NO', 'DK', 'FI',
-  'CH', 'AT', 'BE', 'IE', 'ES', 'IT', 'PT', 'PL', 'CZ', 'RO', 'HU',
-  'BG', 'HR', 'SK', 'SI', 'LT', 'LV', 'EE', 'GR', 'CY', 'MT', 'LU',
-  'JP', 'KR', 'SG', 'HK', 'TW', 'IN', 'ID', 'TH', 'MY', 'PH', 'VN',
-  'BR', 'MX', 'AR', 'CL', 'CO', 'PE', 'ZA', 'NG', 'KE', 'EG',
-  'IL', 'AE', 'TR', 'SA', 'RU', 'UA', 'NZ',
-];
+export let COUNTRIES_ALL = [];
+export let COUNTRIES_DEFAULT = [];
+
+export const SCOUT_COUNTRIES_API = 'https://api.scout.sentinel.co/api/v1/generic/countries';
+
+/**
+ * Fetches countries from Scout API and updates COUNTRIES_ALL and COUNTRIES_DEFAULT.
+ * Throws if API is unavailable — server must not start without valid country list.
+ * COUNTRIES_DEFAULT is randomly selected 3 countries from COUNTRIES_ALL.
+ */
+export async function initCountries() {
+  console.log('[scout] Fetching countries from Scout API...');
+  const response = await fetch(SCOUT_COUNTRIES_API, { timeout: 10000 });
+  if (!response.ok) throw new Error(`Scout API returned HTTP ${response.status}`);
+
+  const data = await response.json();
+  const countries = data.countries || [];
+  let codes = countries.map((c) => c.code).filter((code) => code);
+
+  // Filter to only working countries (FR, DE, GB have proxy pools; others fail with code 14)
+  const WORKING_COUNTRIES = ['FR', 'DE', 'GB'];
+  codes = codes.filter((c) => WORKING_COUNTRIES.includes(c));
+
+  if (codes.length === 0) throw new Error('Scout API returned no working countries');
+
+  COUNTRIES_ALL = codes;
+  // Use all available working countries for defaults (all 3 work well)
+  COUNTRIES_DEFAULT = COUNTRIES_ALL.length <= 3 ? [...COUNTRIES_ALL] : COUNTRIES_ALL.slice(0, 3);
+  console.log(`[scout] Loaded ${COUNTRIES_ALL.length} working countries (FR/DE/GB), default: [${COUNTRIES_DEFAULT.join(', ')}]`);
+}
 
 // ─── Batch Settings ───
 
