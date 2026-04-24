@@ -39,49 +39,30 @@ export const SCOUT_TIMEOUT_MS = 45000;
 
 // ─── Countries ───
 
-const FALLBACK_COUNTRIES_ALL = [
-  'US', 'GB', 'DE', 'FR', 'CA', 'AU', 'NL', 'SE', 'NO', 'DK', 'FI',
-  'CH', 'AT', 'BE', 'IE', 'ES', 'IT', 'PT', 'PL', 'CZ', 'RO', 'HU',
-  'BG', 'HR', 'SK', 'SI', 'LT', 'LV', 'EE', 'GR', 'CY', 'MT', 'LU',
-  'JP', 'KR', 'SG', 'HK', 'TW', 'IN', 'ID', 'TH', 'MY', 'PH', 'VN',
-  'BR', 'MX', 'AR', 'CL', 'CO', 'PE', 'ZA', 'NG', 'KE', 'EG',
-  'IL', 'AE', 'TR', 'SA', 'RU', 'UA', 'NZ',
-];
-
-export let COUNTRIES_ALL = [...FALLBACK_COUNTRIES_ALL];
+export let COUNTRIES_ALL = [];
 export let COUNTRIES_DEFAULT = [];
 
 export const SCOUT_COUNTRIES_API = 'https://api.scout.sentinel.co/api/v1/generic/countries';
 
 /**
  * Fetches countries from Scout API and updates COUNTRIES_ALL and COUNTRIES_DEFAULT.
- * Falls back to hardcoded list if API is unavailable.
+ * Throws if API is unavailable — server must not start without valid country list.
  * COUNTRIES_DEFAULT is randomly selected 3 countries from COUNTRIES_ALL.
  */
 export async function initCountries() {
-  try {
-    const response = await fetch(SCOUT_COUNTRIES_API, { timeout: 10000 });
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+  const response = await fetch(SCOUT_COUNTRIES_API, { timeout: 10000 });
+  if (!response.ok) throw new Error(`Scout API returned HTTP ${response.status}`);
 
-    const data = await response.json();
-    const countries = data.countries || [];
-    const codes = countries.map((c) => c.code).filter((code) => code);
+  const data = await response.json();
+  const countries = data.countries || [];
+  const codes = countries.map((c) => c.code).filter((code) => code);
 
-    if (codes.length > 0) {
-      COUNTRIES_ALL = codes;
-      // Randomly pick 3 from COUNTRIES_ALL for COUNTRIES_DEFAULT
-      const shuffled = [...codes].sort(() => Math.random() - 0.5);
-      COUNTRIES_DEFAULT = shuffled.slice(0, Math.min(3, shuffled.length));
-      return;
-    }
-  } catch (err) {
-    console.warn(`[scout] Failed to fetch countries from API: ${err.message}`);
-  }
+  if (codes.length === 0) throw new Error('Scout API returned empty country list');
 
-  // Fallback: use hardcoded list
-  COUNTRIES_ALL = [...FALLBACK_COUNTRIES_ALL];
-  const shuffled = [...FALLBACK_COUNTRIES_ALL].sort(() => Math.random() - 0.5);
-  COUNTRIES_DEFAULT = shuffled.slice(0, 3);
+  COUNTRIES_ALL = codes;
+  // Randomly pick 3 from COUNTRIES_ALL for COUNTRIES_DEFAULT
+  const shuffled = [...codes].sort(() => Math.random() - 0.5);
+  COUNTRIES_DEFAULT = shuffled.slice(0, Math.min(3, shuffled.length));
 }
 
 // ─── Batch Settings ───
