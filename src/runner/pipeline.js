@@ -174,8 +174,16 @@ async function finalizeRun() {
 async function testSite(site, useAllCountries = false) {
   const SCOUT_KEY = getScoutKey();
   const countries = useAllCountries ? COUNTRIES_ALL : getActiveCountries();
+
+  // Validate that all country codes are from the API-fetched list
+  const validCountries = countries.filter((c) => COUNTRIES_ALL.includes(c));
+  if (validCountries.length < countries.length) {
+    const invalid = countries.filter((c) => !COUNTRIES_ALL.includes(c));
+    logger.warn(`Skipping ${invalid.length} unsupported country code(s): ${invalid.join(', ')}`);
+  }
+
   const probeResults = await Promise.all(
-    countries.map((country) => rawProbe(site.url, country, SCOUT_KEY)),
+    validCountries.map((country) => rawProbe(site.url, country, SCOUT_KEY)),
   );
 
   for (const nr of probeResults) recordProbe(site.url, nr);
