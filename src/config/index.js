@@ -35,7 +35,7 @@ export const PORT = parseInt(process.env.PORT || '3004', 10);
 
 export const SCOUT_API = 'https://api.scout.sentinel.co/api/v1/probe/sync';
 export const SCOUT_USER_URL = 'https://api.scout.sentinel.co/api/v1/user';
-export const SCOUT_TIMEOUT_MS = 45000;
+export const SCOUT_TIMEOUT_MS = 200000; // 200s: Scout API /probe/sync can take up to 3min (180s) + buffer
 
 // ─── Countries ───
 
