@@ -9,7 +9,7 @@
 
 import express from 'express';
 import { join } from 'path';
-import { loadEnv, PORT, ROOT_DIR } from './src/config/index.js';
+import { loadEnv, PORT, ROOT_DIR, initCountries } from './src/config/index.js';
 import { initResults, loadSites, getResults, saveResultsNow } from './src/results/index.js';
 import { migrateOldRuns, loadRunsIndex } from './src/runs/index.js';
 import { broadcast, streamHandler, startHeartbeat, closeSseClients } from './server/sse.js';
@@ -18,57 +18,65 @@ import { logger } from './src/logger/index.js';
 
 // ─── Bootstrap ───
 
-loadEnv();
-initResults();
-migrateOldRuns();
+async function start() {
+  loadEnv();
+  await initCountries();
+  initResults();
+  migrateOldRuns();
 
-// ─── Express App ───
+  // ─── Express App ───
 
-const app = express();
-app.use(express.json());
+  const app = express();
+  app.use(express.json());
 
-// ─── SSE ───
+  // ─── SSE ───
 
-app.get('/api/events', streamHandler);
-const heartbeatInterval = startHeartbeat(5000);
+  app.get('/api/events', streamHandler);
+  const heartbeatInterval = startHeartbeat(5000);
 
-// ─── Static ───
+  // ─── Static ───
 
-app.use('/web', express.static(join(ROOT_DIR, 'web')));
-app.get('/', (req, res) => res.sendFile(join(ROOT_DIR, 'index.html')));
-app.get('/health', (req, res) => res.json({ status: 'ok', uptime: process.uptime() }));
+  app.use('/web', express.static(join(ROOT_DIR, 'web')));
+  app.get('/', (req, res) => res.sendFile(join(ROOT_DIR, 'index.html')));
+  app.get('/health', (req, res) => res.json({ status: 'ok', uptime: process.uptime() }));
 
-// ─── API ───
+  // ─── API ───
 
-mountApiRoutes(app, broadcast);
+  mountApiRoutes(app, broadcast);
 
-// ─── Start ───
+  // ─── Start ───
 
-const server = app.listen(PORT, () => {
-  const sites = loadSites();
-  const results = getResults();
-  const prev = Object.keys(results).length;
-  const passes = Object.values(results).filter((r) => r.verdict === 'PASS').length;
-  const index = loadRunsIndex();
-  logger.info(`Scout Block Check`);
-  logger.info(`http://localhost:${PORT}`);
-  logger.info(`${sites.length} sites | ${prev} tested | ${passes} passing`);
-  logger.info(`${index.runs.length} previous test runs`);
-});
-
-// ─── Graceful Shutdown ───
-
-function shutdown(signal) {
-  logger.info(`${signal} received — shutting down...`);
-  saveResultsNow();
-  clearInterval(heartbeatInterval);
-  closeSseClients();
-  server.close(() => {
-    logger.info('Server closed.');
-    process.exit(0);
+  const server = app.listen(PORT, () => {
+    const sites = loadSites();
+    const results = getResults();
+    const prev = Object.keys(results).length;
+    const passes = Object.values(results).filter((r) => r.verdict === 'PASS').length;
+    const index = loadRunsIndex();
+    logger.info(`Scout Block Check`);
+    logger.info(`http://localhost:${PORT}`);
+    logger.info(`${sites.length} sites | ${prev} tested | ${passes} passing`);
+    logger.info(`${index.runs.length} previous test runs`);
   });
-  setTimeout(() => process.exit(1), 5000);
+
+  // ─── Graceful Shutdown ───
+
+  function shutdown(signal) {
+    logger.info(`${signal} received — shutting down...`);
+    saveResultsNow();
+    clearInterval(heartbeatInterval);
+    closeSseClients();
+    server.close(() => {
+      logger.info('Server closed.');
+      process.exit(0);
+    });
+    setTimeout(() => process.exit(1), 5000);
+  }
+
+  process.on('SIGINT', () => shutdown('SIGINT'));
+  process.on('SIGTERM', () => shutdown('SIGTERM'));
 }
 
-process.on('SIGINT', () => shutdown('SIGINT'));
-process.on('SIGTERM', () => shutdown('SIGTERM'));
+start().catch((err) => {
+  logger.error(`Failed to start server: ${err.message}`);
+  process.exit(1);
+});
